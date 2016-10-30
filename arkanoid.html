@@ -1,0 +1,594 @@
+<html>
+    <head>
+        <title>Arkanoid</title>
+    </head>
+	<style>
+		body{
+			background-color:#151515;
+			
+			-webkit-user-select: none; /* webkit (safari, chrome) browsers */
+			-moz-user-select: none; /* mozilla browsers */
+			-khtml-user-select: none; /* webkit (konqueror) browsers */
+			-ms-user-select: none; /* IE10+ */
+		}
+		header{
+			width:100%;
+			color:white;
+			text-align:center;
+			font-size:5EM;
+			font-family: "Century Gothic", CenturyGothic, AppleGothic, sans-serif;
+		}
+		#canvaswrap{
+			width: 100%;
+			height:80%;
+			display: flex;
+			align-items: center;
+			justify-content: center;
+		}
+		#arkanoidCanvas{
+			background-color:#1C2833;
+			background-image:url("https://wallpaperscraft.com/image/sky_abstract_fog_game_502_300x500.jpg");
+		}
+		
+		#info{
+			width:100%;
+			color:white;
+			text-align:center;
+			font-family: "Century Gothic", CenturyGothic, AppleGothic, sans-serif;
+			color:white;
+		}
+		/*https://media.giphy.com/media/xIw6v41DwSgkU/giphy.gif*/
+	</style>
+    <body>
+		<header>
+			ARKANO.id
+		</header>
+		<div id ="canvaswrap">
+			<canvas id="arkanoidCanvas"></canvas>
+		</div>
+		<div id="info">
+			<p>Song: <a href="https://machinimasound.com/music/parallaxing-atmosphere/" target="_blank">Parallaxing Atmosphere</a></p>
+			<p>Art: <a href="http://opengameart.org/content/breakout-set" target="_blank">Breakout set by Buch</a></p>
+			<p>Sound effects: <a href="http://opengameart.org/content/platformer-jumping-sounds" target="_blank">Platformer jumping sounds by dklon</a> & Platfomer Jumping</p>
+			
+		</div>
+        <!--script src=""></script-->
+    </body>
+	<script>
+		var arkanoid = (function(){
+			let canvas = document.getElementById('arkanoidCanvas');
+			let ctx = canvas.getContext('2d');
+			
+			let gamemode;
+			
+			let spriteTable;
+			let soundEffectTable;
+			
+			let paddle;
+			let ballAmount;
+			let ballList = new Array();
+			let brickAmount;
+			let brickList = new Array();
+			
+			let canvasWidth = 300;
+			let canvasHeight = 500;
+			
+			let brickGeneratorDistance = 0;
+			let brickGeneratorDistanceRate;
+			let spriteLoader;
+			
+			function assetLoader(){
+				spriteTable = new Image();
+				spriteTable.src = "recursos/breakout_pieces.png";
+				soundEffectTable = [new Audio('recursos/Parallaxing_Atmosphere.mp3'), new Audio('recursos/Hit1.wav'), new Audio('recursos/Hit2.wav'), new Audio('recursos/jump_11.wav'), new Audio('recursos/Explosion1.wav'), new Audio('recursos/CoinPickUp1.wav'), new Audio('recursos/jump_04.wav')];
+				soundEffectTable[0].volume = 0.3;
+				soundEffectTable[0].play();
+				ctx.fillStyle="white";
+			}
+			
+			function Sprite (spriteOptions) {
+				this.context = spriteOptions.context;
+				this.image = spriteOptions.image;
+				this.sourceX = spriteOptions.sourceX;
+				this.sourceY = spriteOptions.sourceY;
+				this.sourceWidth = spriteOptions.sourceWidth;
+				this.sourceHeight = spriteOptions.sourceHeight;
+				this.destinationX = spriteOptions.destinationX;
+				this.destinationY = spriteOptions.destinationY;
+				this.scaleFactor = spriteOptions.scaleFactor;
+				
+				this.render = function () {
+					this.context.drawImage(
+					this.image, 
+					this.sourceX, 
+					this.sourceY, 
+					this.sourceWidth, 
+					this.sourceHeight, 
+					this.destinationX, 
+					this.destinationY, 
+					this.sourceWidth, 
+					this.sourceHeight);
+					//this.context.strokeRect(this.destinationX, this.destinationY, this.sourceWidth, this.sourceHeight);
+				};
+				
+				this.renderRect = function(){
+					this.context.strokeRect(this.destinationX, this.destinationY, this.sourceWidth, this.sourceHeight);
+				};
+				
+				this.renderBall = function(){
+					this.context.beginPath();
+					this.context.arc(this.destinationX, this.destinationY, this.sourceWidth, 0, 2 * Math.PI);
+					
+					this.context.stroke();
+					this.context.fill();
+					this.context.closePath();
+				};
+			}
+			
+			function Ball(spriteOptions, ballOptions){
+				this.sprite = new Sprite(spriteOptions);
+				this.headingX = ballOptions.headingX;	//cuanto quieres que se mueva la bola en X por frame
+				this.headingY = ballOptions.headingY;
+				this.speed = ballOptions.speed;
+				this.ratioX = ballOptions.ratioX;
+				this.ratioY = ballOptions.ratioY;
+				this.isAlive = true;
+				this.move = function(){
+					this.checkCanvasBounds();
+					this.checkPaddleCollision();
+					this.checkBricksCollision();
+					
+					this.sprite.destinationX += this.speed * this.headingX;
+					this.sprite.destinationY += this.speed * this.headingY;
+				}
+				this.checkCanvasBounds = function(){
+					if(this.sprite.destinationX - this.sprite.sourceWidth <= 0 || this.sprite.destinationX + this.sprite.sourceWidth>= canvasWidth){
+						//ratioX = myMath.getRandomInt(1,3);
+						this.headingX = -this.headingX;
+						soundEffectTable[1].play();
+					}
+					if(this.sprite.destinationY - this.sprite.sourceWidth <= 0 /*|| this.sprite.destinationY + this.sprite.sourceWidth >= canvasHeight*/){
+						//ratioY = myMath.getRandomInt(1,3);
+						this.headingY = -this.headingY;
+						soundEffectTable[1].play();
+					}
+					if(this.sprite.destinationY + this.sprite.sourceWidth >= canvasHeight){
+						this.isAlive = false;	
+					}
+				}
+				this.checkPaddleCollision = function(){
+					if( this.sprite.destinationY + this.sprite.sourceWidth >= paddle.sprite.destinationY && this.sprite.destinationX + this.sprite.sourceWidth >= paddle.sprite.destinationX && this.sprite.destinationX + this.sprite.sourceWidth <= paddle.sprite.destinationX + paddle.sprite.sourceWidth){
+						this.headingY = -this.headingY;
+						soundEffectTable[3].play();
+					}
+				}
+				
+				/*this.checkCollisionWith(object) = function(){
+					
+				}*/
+				
+				this.checkBricksCollision = function(){
+					for(let i = 0; i < brickAmount ;i++){
+						
+						if(brickList[i].health > 0){
+							//collision arriba
+							//collision debajo
+							//para que collisione arriba/debajo la x tiene que estar entre los laterales del bloque
+							if(this.sprite.destinationX + this.sprite.sourceWidth >= brickList[i].sprite.destinationX && this.sprite.destinationX + this.sprite.sourceWidth<= brickList[i].sprite.destinationX + brickList[i].sprite.sourceWidth){
+								//si esta entre arriba y abajo es que ha collisionado
+								if(this.sprite.destinationY + this.sprite.sourceWidth >= brickList[i].sprite.destinationY && this.sprite.destinationY - this.sprite.sourceWidth<= brickList[i].sprite.destinationY+brickList[i].sprite.sourceHeight){
+									brickList[i].gotHit();
+									this.headingY = -this.headingY;
+									soundEffectTable[2].play();
+								}
+							}
+							//collision izquierda
+							//collision derecha
+							if(this.sprite.destinationY + this.sprite.sourceWidth >= brickList[i].sprite.destinationY && this.sprite.destinationY - this.sprite.sourceWidth<= brickList[i].sprite.destinationY + brickList[i].sprite.sourceHeight){
+							
+								if(this.sprite.destinationX + this.sprite.sourceHeight >= brickList[i].sprite.destinationX && this.sprite.destinationX - this.sprite.sourceHeight<= brickList[i].sprite.destinationX+brickList[i].sprite.sourceWidth){
+									brickList[i].gotHit();
+									this.headingX = -this.headingX;
+									soundEffectTable[2].play();
+								}
+							}
+						}
+					}
+				}	
+			}
+			
+			function Paddle(spriteOptions, paddleOptions){
+				this.sprite = new Sprite(spriteOptions);
+				this.headingX;
+				this.speed = paddleOptions.speed;
+				this.move = function(){
+					this.sprite.destinationX = this.sprite.destinationX + this.headingX;
+				}
+				this.changeHeading = function(){
+					this.heading = -this.heading;
+				}
+				this.checkBricksCollision = function(){
+					for(let i = 0; i < brickAmount ;i++){
+						/*if(brickList[i].health > 0){
+							if(this.sprite.destinationX + this.sprite.sourceWidth>=brickList[i].sprite.destinationX && this.sprite.destinationX <= brickList[i].sprite.destinationX + brickList[i].sprite.sourceWidth){
+								if(this.sprite.destinationY == brickList[i].sprite.destinationY){
+									brickList[i].gotHit();
+									gamemode.gotHit();
+								}
+							}
+						}*/
+						if(this.checkCollision(brickList[i])){
+							if(brickList[i].health > 0){
+								brickList[i].gotHit();
+								gamemode.gotHit();
+								soundEffectTable[4].play();
+							}
+						}
+					}
+				}
+				
+				this.checkCollision = function(object){
+					if(this.sprite.destinationX + this.sprite.sourceWidth>=object.sprite.destinationX && this.sprite.destinationX <= object.sprite.destinationX + object.sprite.sourceWidth){
+							if(this.sprite.destinationY == object.sprite.destinationY){
+								return true;
+							}
+						}
+					}
+					return false;
+				}
+			
+			function Brick(spriteOptions, brickOptions){
+				this.sprite = new Sprite(spriteOptions);
+				this.health = brickOptions.health;
+				this.speed = brickOptions.speed;
+				this.gotHit = function(){
+					this.health --;
+					gamemode.addScore();
+				}
+				this.moveDown = function(){
+					this.sprite.destinationY += this.speed;
+				}
+			}
+			
+			function GameMode(){
+				this.score = 0;
+				this.lives = 5;
+				this.availableBalls = 1;
+				this.brickSpeed = 1;
+				this.addScore = function(){
+					this.score = this.score + 100;
+				}
+				this.gotHit = function(){
+					this.lives--;
+				}
+				this.addBall = function(){
+					this.availableBalls++;
+				}
+				this.increaseBallSpeed = function(){
+					this.brickSpeed++;
+				}
+			}
+			
+			function loadGameMode(){
+				gamemode = new GameMode();
+			}
+			
+			function SpriteLoader(){
+				this.blueBlock = {
+					sourceX: 7,
+					sourceY: 7
+				};
+				this.greenBlock = {
+					sourceX: 7,
+					sourceY: 27
+				};
+				this.redBlock = {
+					sourceX: 7,
+					sourceY: 47
+				};
+				this.goldBlock = {
+					sourceX: 7,
+					sourceY: 87
+				};
+			}
+			
+			function loadPaddle(){
+				paddle = new Paddle({
+					context: ctx,
+					image: spriteTable,
+					sourceX: 47,
+					sourceY: 111,
+					sourceWidth: 64,
+					sourceHeight: 64,
+					destinationX: canvasWidth/2 - canvasWidth/10,
+					destinationY: canvasHeight - 10,
+					scaleFactor: 2
+				},
+				{	speed:5
+				}
+				);
+			}
+			
+			function loadBalls(){
+				ballAmount = 0;
+				for(let i = 0; i < ballAmount; i++){
+					ballList[i] = new Ball({
+					context: ctx,
+					image: spriteTable,
+					sourceX: 47,
+					sourceY: 135,
+					sourceWidth: 9,
+					sourceHeight: 9,
+					destinationX: canvasWidth/2,
+					destinationY: canvasHeight/2,
+					scaleFactor: 1
+				}, {
+					headingX: myMath.getRandomInt(-1,1),
+					headingY: -1,
+					speed: 1,
+					ratioX: 1,
+					ratioY: 1
+				})
+				}
+			}
+			
+			function loadBricks(){//array de dos dimensiones?
+				brickAmount = canvasWidth / 35;
+				for(let i = 0; i < brickAmount; i++){ 
+					brickList[i] = new Brick({
+						context: ctx,
+						image: spriteTable,
+						sourceX: 7,
+						sourceY: 7,
+						sourceWidth: 33,
+						sourceHeight:17,
+						destinationX: (i) * 33,
+						destinationY: -17,
+						scaleFactor: 1
+					},{
+						health: 1,
+						speed:gamemode.brickSpeed
+					})
+				}
+				spriteLoader = new SpriteLoader()
+			}
+			
+			function brickGenerator(){
+				brickGeneratorDistanceRate =  (canvasHeight + 17)/gamemode.brickSpeed;
+				if(brickGeneratorDistance >= brickGeneratorDistanceRate){
+					let newSourceX;
+					let newSourceY;
+					let newHealth;
+					for(let i = 0; i < brickAmount; i++){
+						newHealth = getRandomInt(1, 5)
+						if(newHealth > 4){
+							newSourceX = spriteLoader.goldBlock.sourceX;
+							newSourceY = spriteLoader.goldBlock.sourceY;
+						} else if(newHealth > 3){
+							newSourceX = spriteLoader.redBlock.sourceX;
+							newSourceY = spriteLoader.redBlock.sourceY;
+						} else if(newHealth > 2){
+							newSourceX = spriteLoader.greenBlock.sourceX;
+							newSourceY = spriteLoader.greenBlock.sourceY;
+						} else {
+							newSourceX = spriteLoader.blueBlock.sourceX;
+							newSourceY = spriteLoader.blueBlock.sourceY;
+						}
+						brickList[i] = new Brick({
+							context: ctx,
+							image: spriteTable,
+							sourceX: newSourceX,
+							sourceY: newSourceY,
+							sourceWidth: 33,
+							sourceHeight:17,
+							destinationX: (i) * 33,
+							destinationY: -17,
+							scaleFactor: 1
+							},{
+								health: newHealth,
+								speed:gamemode.brickSpeed
+						})
+					}
+					brickGeneratorDistance = 0;
+					gamemode.addBall();
+					soundEffectTable[5].play();
+				}else{
+					brickGeneratorDistance++;
+				}
+			}
+			
+			function ballsManager(){
+				for(let i = 0; i < ballAmount; i++){
+					ballsLeft = 0;
+					if(ballList[i].isAlive){
+						ballList[i].sprite.renderBall();
+						ballList[i].move();
+					}
+				}
+				if(!checkGameOver()){
+					ctx.font="40px Courier New";
+					ctx.fillText("YOU LOSE",canvas.width/2 - ctx.measureText("YOU LOSE").width/2,canvasHeight/2);
+				}
+			}
+			
+			function checkGameOver(){
+				for(let i = 0; i < ballAmount; i++){
+					if(ballList[i].isAlive){
+						//return true;
+					}
+				}
+				if(gamemode.lives <= 0){
+					return false;
+				}else return true;	
+			}
+			
+			function paddleManager(){
+				//paddle.sprite.renderRect();
+				paddle.sprite.render();
+				paddle.checkBricksCollision();
+			}
+			
+			function bricksManager(){
+				for(let i = 0; i < brickAmount; i++){
+					if(brickList[i].health>0){
+						brickList[i].sprite.render();
+						//brickList[i].sprite.renderRect();
+						brickList[i].moveDown();
+					}
+				}
+				if(!checkGameWin()){
+					ctx.font="20px Georgia";
+					//ctx.fillText("YOU WIN",0,20);
+				}
+			}
+			
+			function checkGameWin(){
+				for(let i = 0; i < brickAmount; i++){
+					if(brickList[i].health>0){
+						return true;
+					}
+				}
+				return false;
+			}
+			
+			function showScore(){
+				ctx.font="10px Century Gothic";
+				ctx.fillText(gamemode.score, canvasWidth - ctx.measureText(gamemode.score).width,10);
+			}
+			
+			function showLives(){
+				//ctx.font="20px Georgia";
+				//ctx.fillText(gamemode.lives,200,40);
+				for(let i = 0; i < gamemode.lives; i++){
+					newHeart = new Sprite({
+						context: ctx,
+						image: spriteTable,
+						sourceX: 119,
+						sourceY: 134,
+						sourceWidth: 11,
+						sourceHeight:11,
+						destinationX: (i * 12),
+						destinationY: 0,
+						scaleFactor: 2
+					})
+					newHeart.render();
+				}
+			}
+			
+			function showAvailableBalls(){
+				for(let i = 0; i < gamemode.availableBalls; i++){
+					newAvailableBall = new Sprite({
+						context: ctx,
+						image: spriteTable,
+						sourceX: 83,
+						sourceY: 135,
+						sourceWidth: 9,
+						sourceHeight:9,
+						destinationX: (i * 10),
+						destinationY: 10,
+						scaleFactor: 2
+					})
+					newAvailableBall.render();
+				}
+			}
+			
+			function muteAudio(){
+				for(let i = 0; i <soundEffectTable.length; i++){
+					if(soundEffectTable[i].volume > 0){
+						soundEffectTable[i].volume = 0;
+					} else {
+						soundEffectTable[i].volume = 0.5;
+					}
+					
+				}
+			}
+			
+			function getRandomInt(min, max) {
+				return Math.floor(Math.random() * (max - min + 1)) + min;
+			}
+			
+			function eventHandler(){
+				document.addEventListener('keydown', function(event) {
+					if(event.keyCode=='37'){
+						console.log("left");
+						paddle.sprite.destinationX -= 5;
+					} else if(event.keyCode=='39'){
+						console.log("right");
+						paddle.sprite.destinationX += 5;
+					} else if(event.keyCode=='38'){
+						console.log("up");
+					}
+					if(event.keyCode==77){
+						muteAudio();
+					}
+				});
+				
+				canvas.addEventListener('mousemove', function(event) {
+					paddle.sprite.destinationX = ((event.clientX - canvas.offsetLeft) - paddle.sprite.sourceWidth/2);
+				});
+				
+				canvas.addEventListener('click', function(event) {
+					if(gamemode.availableBalls > 0){
+						newBall = new Ball({
+						context: ctx,
+						image: spriteTable,
+						sourceX: 47,
+						sourceY: 135,
+						sourceWidth: 9,
+						sourceHeight: 9,
+						destinationX: paddle.sprite.destinationX,
+						destinationY: paddle.sprite.destinationY - 10,
+						scaleFactor: 1
+						}, {
+							headingX:-1,
+							headingY: -1,
+							speed: 5,
+							ratioX: 1,
+							ratioY: 1
+						})
+						ballList.push(newBall);
+						ballAmount++;
+						gamemode.availableBalls--;
+						soundEffectTable[6].play();
+					}
+				});
+				
+				soundEffectTable[0].addEventListener('ended', function() {
+					this.currentTime = 0;
+					this.play();
+				}, false);
+			}
+			
+			function clearWholeScreen(){
+				ctx.clearRect(0, 0, canvas.width, canvas.height);
+			}
+			
+			function gameloop(){
+				window.requestAnimationFrame(gameloop);
+				clearWholeScreen();
+				ballsManager();
+				paddleManager();
+				bricksManager();
+				showScore();
+				showLives();
+				brickGenerator();
+				showAvailableBalls();
+			}
+			
+			function init(){
+				canvas.width = canvasWidth;
+				canvas.height = canvasHeight;
+				assetLoader();
+				loadGameMode();
+				eventHandler();
+				loadBalls();
+				loadBricks();
+				loadPaddle();
+				window.requestAnimationFrame(gameloop);
+			}
+			
+			init();
+		})();
+		//http://www.w3schools.com/js/js_object_prototypes.asp
+	</script>
+</html>
