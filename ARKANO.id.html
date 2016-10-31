@@ -1,6 +1,9 @@
 <html>
     <head>
-        <title>Arkanoid</title>
+        <title>ARKANO.id</title>
+		<meta charset="UTF-8"/>
+		<meta name="description" content="Cool game"/>
+		<meta name="author" content="Arturo Rodr?guez Romero">
     </head>
 	<style>
 		body{
@@ -288,6 +291,7 @@
 				this.lives = 5;
 				this.availableBalls = 1;
 				this.brickSpeed = 1;
+				this.isGameOver = false;
 				this.addScore = function(){
 					this.score = this.score + 100;
 				}
@@ -439,8 +443,10 @@
 					}
 				}
 				if(!checkGameOver()){
-					ctx.font="40px Courier New";
-					ctx.fillText("YOU LOSE",canvas.width/2 - ctx.measureText("YOU LOSE").width/2,canvasHeight/2);
+					ctx.font="50px Century Gothic";
+					ctx.strokeText("GAME OVER",canvas.width/2 - ctx.measureText("GAME OVER").width/2,canvasHeight/2);
+					ctx.fillText("GAME OVER",canvas.width/2 - ctx.measureText("GAME OVER").width/2,canvasHeight/2);
+					gamemode.isGameOver = true;
 				}
 			}
 			
@@ -541,7 +547,8 @@
 			}
 			
 			function eventHandler(){
-				document.addEventListener('keydown', function(event) {
+				if (!/Android|webOS|iPhone|iPad|iPod|BlackBerry|BB|PlayBook|IEMobile|Windows Phone|Kindle|Silk|Opera Mini/i.test(navigator.userAgent)) {
+					document.addEventListener('keydown', function(event) {
 					if(event.keyCode=='37'){
 						console.log("left");
 						paddle.sprite.destinationX -= 5;
@@ -585,7 +592,37 @@
 						soundEffectTable[6].play();
 					}
 				});
-				
+				} else {
+					canvas.addEventListener('touchmove', function(event) {
+					paddle.sprite.destinationX = ((event.touches[event.touches.length - 1].clientX - canvas.offsetLeft) - paddle.sprite.sourceWidth/2);
+					});
+					
+					canvas.addEventListener('click', function(event) {
+					if(gamemode.availableBalls > 0){
+						newBall = new Ball({
+						context: ctx,
+						image: spriteTable,
+						sourceX: 47,
+						sourceY: 135,
+						sourceWidth: 9,
+						sourceHeight: 9,
+						destinationX: paddle.sprite.destinationX,
+						destinationY: paddle.sprite.destinationY - 10,
+						scaleFactor: 1
+						}, {
+							headingX:-1,
+							headingY: -1,
+							speed: 5,
+							ratioX: 1,
+							ratioY: 1
+						})
+						ballList.push(newBall);
+						ballAmount++;
+						gamemode.availableBalls--;
+						soundEffectTable[6].play();
+					}
+				});
+				}
 				soundEffectTable[0].addEventListener('ended', function() {
 					this.currentTime = 0;
 					this.play();
@@ -597,18 +634,20 @@
 			}
 			
 			function gameloop(){
-				window.requestAnimationFrame(gameloop);
-				clearWholeScreen();
-				ballsManager();
-				paddleManager();
-				bricksManager();
-				showScore();
-				showLives();
-				brickGenerator();
-				showAvailableBalls();
+				if(!gamemode.isGameOver){
+					clearWholeScreen();
+					ballsManager();
+					paddleManager();
+					bricksManager();
+					showScore();
+					showLives();
+					brickGenerator();
+					showAvailableBalls();
+					window.requestAnimationFrame(gameloop);
+				}
 			}
 			
-			function init(){
+			function initGame(){
 				canvas.width = canvasWidth;
 				canvas.height = canvasHeight;
 				assetLoader();
@@ -620,7 +659,7 @@
 				window.requestAnimationFrame(gameloop);
 			}
 			
-			init();
+			initGame();
 		})();
 		//http://www.w3schools.com/js/js_object_prototypes.asp
 	</script>
