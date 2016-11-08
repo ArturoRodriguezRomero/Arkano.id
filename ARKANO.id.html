@@ -4,6 +4,7 @@
 		<meta charset="UTF-8"/>
 		<meta name="description" content="Cool game"/>
 		<meta name="author" content="Arturo Rodr?guez Romero">
+		<link rel="shortcut icon" href="recursos/icon.png" />
     </head>
 	<style>
 		body{
@@ -79,13 +80,18 @@
 			<figure>
 				<img src="recursos/mouse.svg" height="50" width="50">
 			</figure>
+			<p>Move with mouse</p>
+			<p>Click to release a new ball</p>
+			<p>Press R to try again</p>
+			<p>Press M to mute audio</p>
 			<h1>CREDITS</h1>
 			<div id="credits">
 				<p>Game design and logic: <a href="http://arturorodriguezromero.github.io/" target="_blank">Myself</a></p>
 				<p>Song: <a href="https://machinimasound.com/music/parallaxing-atmosphere/" target="_blank">Parallaxing Atmosphere</a></p>
 				<p>Art: <a href="http://opengameart.org/content/breakout-set" target="_blank">Breakout set by Buch</a></p>
 				<p>Sound effects: <a href="http://opengameart.org/content/platformer-jumping-sounds" target="_blank">Platformer jumping sounds by dklon</a> & Platfomer Jumping</p>
-				<div>Mouse icon made by <a href="http://www.flaticon.com/authors/freepik" title="Freepik">Freepik</a> from <a href="http://www.flaticon.com" title="Flaticon">www.flaticon.com</a> is licensed by <a href="http://creativecommons.org/licenses/by/3.0/" title="Creative Commons BY 3.0" target="_blank">CC 3.0 BY</a></div>
+				<p>Shortcut icon made by <a href="http://www.flaticon.com/authors/madebyoliver" title="Madebyoliver">Madebyoliver</a> from <a href="http://www.flaticon.com" title="Flaticon">www.flaticon.com</a> is licensed by <a href="http://creativecommons.org/licenses/by/3.0/" title="Creative Commons BY 3.0" target="_blank">CC 3.0 BY</a></p>
+				<p>Mouse icon made by <a href="http://www.flaticon.com/authors/freepik" title="Freepik">Freepik</a> from <a href="http://www.flaticon.com" title="Flaticon">www.flaticon.com</a> is licensed by <a href="http://creativecommons.org/licenses/by/3.0/" title="Creative Commons BY 3.0" target="_blank">CC 3.0 BY</a></p>
 			</div>
 		</div>
         <!--script src=""></script-->
@@ -96,6 +102,7 @@
 			let ctx = canvas.getContext('2d');
 			
 			let gamemode;
+			let loop;
 			
 			let spriteTable;
 			let soundEffectTable;
@@ -113,6 +120,8 @@
 			let brickGeneratorDistanceRate;
 			let spriteLoader;
 			
+			let currentTopScore = localStorage.getItem("topScore");
+			
 			function assetLoader(){
 				spriteTable = new Image();
 				spriteTable.src = "recursos/breakout_pieces.png";
@@ -120,6 +129,37 @@
 				soundEffectTable[0].volume = 0.3;
 				soundEffectTable[0].play();
 				ctx.fillStyle="white";
+			}
+			
+			function resetVariables(){
+				
+				gamemode = null;
+			
+				spriteTable = null;
+				
+				soundEffectTable[0].pause();
+				soundEffectTable[0].currentTime = 0;
+				
+				soundEffectTable = null;
+				
+				paddle = null;
+				ballAmount = null;
+				ballList = new Array();
+				brickAmount = null;
+				brickList = new Array();
+				
+				canvasWidth = 300;
+				canvasHeight = 500;
+				
+				brickGeneratorDistance = 0;
+				brickGeneratorDistanceRate = null;
+				spriteLoader = null;
+				
+				currentTopScore = localStorage.getItem("topScore");
+				
+				cancelAnimationFrame(loop);
+				
+				initGame();
 			}
 			
 			function Sprite (spriteOptions) {
@@ -178,13 +218,20 @@
 					this.sprite.destinationY += this.speed * this.headingY;
 				}
 				this.checkCanvasBounds = function(){
-					if(this.sprite.destinationX - this.sprite.sourceWidth <= 0 || this.sprite.destinationX + this.sprite.sourceWidth>= canvasWidth){
+					if(this.sprite.destinationX - this.sprite.sourceWidth <= 0){//por la izquierda
 						//ratioX = myMath.getRandomInt(1,3);
+						this.sprite.destinationX = 0 + this.sprite.sourceWidth;
+						this.headingX = -this.headingX;
+						soundEffectTable[1].play();
+					}
+					if(this.sprite.destinationX + this.sprite.sourceWidth>= canvasWidth){//por la derecha
+						this.sprite.destinationX = canvasWidth - this.sprite.sourceWidth;
 						this.headingX = -this.headingX;
 						soundEffectTable[1].play();
 					}
 					if(this.sprite.destinationY - this.sprite.sourceWidth <= 0 /*|| this.sprite.destinationY + this.sprite.sourceWidth >= canvasHeight*/){
 						//ratioY = myMath.getRandomInt(1,3);
+						this.sprite.destinationY = this.sprite.sourceWidth;
 						this.headingY = -this.headingY;
 						soundEffectTable[1].play();
 					}
@@ -194,6 +241,7 @@
 				}
 				this.checkPaddleCollision = function(){
 					if( this.sprite.destinationY + this.sprite.sourceWidth >= paddle.sprite.destinationY && this.sprite.destinationX + this.sprite.sourceWidth >= paddle.sprite.destinationX && this.sprite.destinationX + this.sprite.sourceWidth <= paddle.sprite.destinationX + paddle.sprite.sourceWidth){
+						this.sprite.destinationY -= this.sprite.sourceWidth;
 						this.headingY = -this.headingY;
 						soundEffectTable[3].play();
 					}
@@ -429,6 +477,8 @@
 					brickGeneratorDistance = 0;
 					gamemode.addBall();
 					soundEffectTable[5].play();
+					//soundEffectTable[0].source.playBackRate.value += 0.10;
+					//console.log(soundEffectTable[0].source.playBackRate.value);
 				}else{
 					brickGeneratorDistance++;
 				}
@@ -444,18 +494,27 @@
 				}
 				if(!checkGameOver()){
 					ctx.font="50px Century Gothic";
-					ctx.strokeText("GAME OVER",canvas.width/2 - ctx.measureText("GAME OVER").width/2,canvasHeight/2);
-					ctx.fillText("GAME OVER",canvas.width/2 - ctx.measureText("GAME OVER").width/2,canvasHeight/2);
+					ctx.strokeText("GAME OVER",canvas.width/2 - ctx.measureText("GAME OVER").width/2,canvasHeight/2 - 24);
+					ctx.fillText("GAME OVER",canvas.width/2 - ctx.measureText("GAME OVER").width/2,canvasHeight/2 - 25);
+					if(gamemode.score > localStorage.getItem("topScore")){
+						localStorage.setItem("topScore", gamemode.score);
+						ctx.font="25px Century Gothic";
+						ctx.strokeText("NEW RECORD", canvas.width/2 - ctx.measureText("NEW RECORD").width/2, canvasHeight/2 - 69);
+						ctx.fillStyle = "yellow";
+						ctx.fillText("NEW RECORD", canvas.width/2 - ctx.measureText("NEW RECORD").width/2, canvasHeight/2 - 70);
+					}
+					ctx.font="50px Century Gothic";
+					ctx.fillStyle = "white";
+					ctx.strokeText(gamemode.score, canvas.width/2 - ctx.measureText(gamemode.score).width/2, canvasHeight/2 + 26);
+					ctx.fillText(gamemode.score, canvas.width/2 - ctx.measureText(gamemode.score).width/2, canvasHeight/2 + 25);
+					ctx.font="25px Century Gothic";
+					ctx.strokeText("Press R to try again",canvas.width/2 - ctx.measureText("Press R to try again").width/2,canvasHeight/2 + 52);
+					ctx.fillText("Press R to try again",canvas.width/2 - ctx.measureText("Press R to try again").width/2,canvasHeight/2 + 51);
 					gamemode.isGameOver = true;
 				}
 			}
 			
 			function checkGameOver(){
-				for(let i = 0; i < ballAmount; i++){
-					if(ballList[i].isAlive){
-						//return true;
-					}
-				}
 				if(gamemode.lives <= 0){
 					return false;
 				}else return true;	
@@ -492,7 +551,8 @@
 			
 			function showScore(){
 				ctx.font="10px Century Gothic";
-				ctx.fillText(gamemode.score, canvasWidth - ctx.measureText(gamemode.score).width,10);
+				ctx.fillText("Your score: " + gamemode.score, canvasWidth - ctx.measureText("Your score: " + gamemode.score).width,20);
+				ctx.fillText("High Score: " + currentTopScore, canvasWidth - ctx.measureText("High Score: " + currentTopScore).width,10);
 			}
 			
 			function showLives(){
@@ -546,20 +606,39 @@
 				return Math.floor(Math.random() * (max - min + 1)) + min;
 			}
 			
+			function getCookie(cname) {
+				var name = cname + "=";
+				var ca = document.cookie.split(';');
+				for(var i = 0; i <ca.length; i++) {
+					var c = ca[i];
+					while (c.charAt(0)==' ') {
+						c = c.substring(1);
+					}
+					if (c.indexOf(name) == 0) {
+						return c.substring(name.length,c.length);
+					}
+				}
+				return "";
+			}
+			
 			function eventHandler(){
 				if (!/Android|webOS|iPhone|iPad|iPod|BlackBerry|BB|PlayBook|IEMobile|Windows Phone|Kindle|Silk|Opera Mini/i.test(navigator.userAgent)) {
 					document.addEventListener('keydown', function(event) {
 					if(event.keyCode=='37'){
-						console.log("left");
-						paddle.sprite.destinationX -= 5;
+						//console.log("left");
+						//paddle.sprite.destinationX -= 5;
 					} else if(event.keyCode=='39'){
-						console.log("right");
-						paddle.sprite.destinationX += 5;
+						//console.log("right");
+						//paddle.sprite.destinationX += 5;
 					} else if(event.keyCode=='38'){
-						console.log("up");
+						//console.log("up");
 					}
 					if(event.keyCode==77){
 						muteAudio();
+					}
+					if(event.keyCode==82){
+						//alert("reset");
+						resetVariables();
 					}
 				});
 				
@@ -643,7 +722,7 @@
 					showLives();
 					brickGenerator();
 					showAvailableBalls();
-					window.requestAnimationFrame(gameloop);
+					loop = window.requestAnimationFrame(gameloop)	;
 				}
 			}
 			
@@ -656,7 +735,7 @@
 				loadBalls();
 				loadBricks();
 				loadPaddle();
-				window.requestAnimationFrame(gameloop);
+				loop = window.requestAnimationFrame(gameloop);
 			}
 			
 			initGame();
